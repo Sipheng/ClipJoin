@@ -6,73 +6,41 @@ export async function onRequestPost(context) {
   };
 
   try {
-    let body;
-    try {
-      body = await context.request.json();
-    } catch (e) {
-      return new Response(JSON.stringify({ success: false, error: "Invalid JSON body sent to API." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    const { url } = body;
+    const { url } = await context.request.json();
     if (!url) {
-      return new Response(JSON.stringify({ success: false, error: "Missing URL parameter." }), {
+      return new Response(JSON.stringify({ error: "Missing URL" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    // Fetch target URL with standard browser headers
+    // Fetch target HTML bypassing browser CORS restriction
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       }
     });
 
-    const responseText = await response.text();
+    const htmlText = await response.text();
 
-    if (!response.ok) {
-      return new Response(JSON.stringify({ success: false, error: `Target server responded with HTTP status ${response.status}` }), {
-        status: 400,
+    // Regex pattern to extract underlying stream source (.tiktokcdn.com or raw mp4 links)
+    const streamMatch = htmlText.match(/https:\/\/[^"'<>\s]+?\.(?:tiktokcdn\.com|mp4)[^"'<>\s]*/i);
+
+    if (streamMatch) {
+      // Unescape backslashes if embedded inside JS strings
+      const rawDirectUrl = streamMatch[0].replace(/\\/g, '');
+      return new Response(JSON.stringify({ success: true, directUrl: rawDirectUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    // Flexible patterns to extract underlying video streaming links
-    const patterns = [
-      /https:\/\/[^"'<>\s]+?\.(?:tiktokcdn\.com|mp4)[^"'<>\s]*/i,
-      /"playAddr"\s*:\s*"([^"]+)"/,
-      /"videoUrl"\s*:\s*"([^"]+)"/,
-      /src\s*=\s*["'](https:\/\/[^"']+\.mp4[^"']*)["']/i
-    ];
-
-    let directUrl = null;
-    for (const pattern of patterns) {
-      const match = responseText.match(pattern);
-      if (match) {
-        directUrl = (match[1] || match[0]).replace(/\\u002F/g, '/').replace(/\\/g, '');
-        break;
-      }
-    }
-
-    if (directUrl) {
-      return new Response(JSON.stringify({ success: true, directUrl }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    return new Response(JSON.stringify({ success: false, error: "Could not find a direct video stream link on the target page." }), {
+    return new Response(JSON.stringify({ error: "No valid video stream URL found on page." }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
   } catch (err) {
-    // Guaranteed JSON return even on unhandled worker exceptions
-    return new Response(JSON.stringify({ success: false, error: `Worker Error: ${err.message}` }), {
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
