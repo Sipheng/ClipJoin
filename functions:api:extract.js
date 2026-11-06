@@ -14,27 +14,56 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Fetch target HTML bypassing browser CORS restriction
+    // Fetch target HTML mimicking a real browser user agent
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5"
       }
     });
 
-    const htmlText = await response.text();
-
-    // Regex pattern to extract underlying stream source (.tiktokcdn.com or raw mp4 links)
-    const streamMatch = htmlText.match(/https:\/\/[^"'<>\s]+?\.(?:tiktokcdn\.com|mp4)[^"'<>\s]*/i);
-
-    if (streamMatch) {
-      // Unescape backslashes if embedded inside JS strings
-      const rawDirectUrl = streamMatch[0].replace(/\\/g, '');
-      return new Response(JSON.stringify({ success: true, directUrl: rawDirectUrl }), {
+    if (!response.ok) {
+      return new Response(JSON.stringify({ error: `Target site returned HTTP status ${response.status}` }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    return new Response(JSON.stringify({ error: "No valid video stream URL found on page." }), {
+    const htmlText = await response.text();
+
+    // Check if the response accidentally gave a Cloudflare/security challenge page
+    if (htmlText.includes("Just a moment...") || htmlText.includes("Checking your browser")) {
+      return new Response(JSON.stringify({ error: "Target site has bot protection (Cloudflare challenge) blocking the request." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // Flexible regex patterns to catch various direct video CDN sources
+    const patterns = [
+      /https:\/\/[^"'<>\s]+?\.(?:tiktokcdn\.com|mp4)[^"'<>\s]*/i,
+      /"playAddr"\s*:\s*"([^"]+)"/,
+      /"videoUrl"\s*:\s*"([^"]+)"/,
+      /src\s*=\s*["'](https:\/\/[^"']+\.mp4[^"']*)["']/i
+    ];
+
+    let directUrl = null;
+    for (const pattern of patterns) {
+      const match = htmlText.match(pattern);
+      if (match) {
+        directUrl = (match[1] || match[0]).replace(/\\u002F/g, '/').replace(/\\/g, '');
+        break;
+      }
+    }
+
+    if (directUrl) {
+      return new Response(JSON.stringify({ success: true, directUrl }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "No valid video stream URL pattern matched on the page." }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
