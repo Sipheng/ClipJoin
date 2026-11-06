@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipJoin — Multi-Video Stitcher</title>
+<meta name="description" content="Paste episode watch links. ClipJoin extracts dynamic streams and merges them into a single MP4 file.">
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2b;--panel2:#0e1626;--line:#26344b;--muted:#9aa9bf;--text:#edf3fc;--blue:#5b8cff;--green:#20c997;--red:#ff6b7a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1c3157 0,transparent 55%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+.wrap{width:min(920px,calc(100% - 32px));margin:52px auto}.brand{display:flex;align-items:center;gap:12px;margin-bottom:30px}.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#6e9cff,#735bff);display:grid;place-items:center;font-size:22px;box-shadow:0 8px 28px #456de044}.brand strong{font-size:18px;letter-spacing:.2px}.brand small{display:block;color:var(--muted);font-size:12px}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.12;margin:0 0 12px;letter-spacing:-1.2px}.intro{color:var(--muted);max-width:650px;margin:0 0 28px}
+.card{background:linear-gradient(180deg,#151f32,#101827);border:1px solid var(--line);border-radius:20px;padding:24px;box-shadow:0 20px 70px #0003}.labelrow{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.labelrow label{font-weight:650}.hint{font-size:12px;color:var(--muted)}
+textarea{width:100%;min-height:190px;resize:vertical;background:var(--panel2);border:1px solid #30415b;border-radius:12px;padding:15px;color:var(--text);font:13px/1.8 ui-monospace,SFMono-Regular,Menlo,monospace;outline:none}textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px #5b8cff22}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:15px}.btn{border:0;border-radius:11px;padding:12px 17px;font-weight:700;cursor:pointer;color:white;background:#26364f;transition:.15s}.btn:hover:not(:disabled){filter:brightness(1.15);transform:translateY(-1px)}.btn:disabled{opacity:.42;cursor:not-allowed}.primary{background:linear-gradient(135deg,#5288ff,#735cff);flex:1}.secondary{background:#26364f}.success{background:#11865f;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.notice{border:1px solid #5a4828;background:#211d16;color:#e7c995;border-radius:12px;padding:12px 14px;font-size:12px;margin-top:18px}.notice strong{color:#ffe0a3}
+.status{margin-top:20px;display:none}.status.show{display:block}.statushead{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:9px}.statushead strong{font-size:14px}.percent{font-variant-numeric:tabular-nums;color:#c6d6f3}.track{height:10px;background:#25334a;border-radius:99px;overflow:hidden}.fill{height:100%;width:0;background:linear-gradient(90deg,#548cff,#25d6a0);border-radius:99px;transition:width .2s}.substatus{color:var(--muted);font-size:12px;margin-top:8px;min-height:18px}
+.queue{margin-top:18px;display:grid;gap:8px}.item{display:flex;gap:10px;align-items:center;background:#0d1523;border:1px solid #26354a;border-radius:10px;padding:10px 12px;min-width:0}.num{width:24px;height:24px;border-radius:7px;background:#253650;display:grid;place-items:center;font-size:11px;color:#c8d8f2;flex:none}.url{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font:12px ui-monospace,monospace;color:#c8d5e9}.state{font-size:11px;color:var(--muted);white-space:nowrap}.state.ok{color:#55d9ad}.state.bad{color:#ff8791}
+.result{display:none;margin-top:20px;padding:16px;border:1px solid #216c56;background:#10251f;border-radius:13px}.result.show{display:block}.result strong{display:block;margin-bottom:4px}.result p{margin:0 0 12px;color:#a9cdbf;font-size:12px}.foot{color:#74849c;font-size:11px;text-align:center;margin:20px 0 0}
+@media(max-width:600px){.wrap{margin:28px auto}.card{padding:17px}.controls .primary{flex-basis:100%}.brand{margin-bottom:24px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand"><div class="logo">▶</div><div><strong>ClipJoin</strong><small>Multi-Episode Video Merger</small></div></div>
+  <h1>One list. One video.</h1>
+  <p class="intro">Paste watch links one per line. ClipJoin automatically extracts the underlying stream sources, proxies them securely, and joins them into a single MP4.</p>
+
+  <section class="card">
+    <div class="labelrow"><label for="urls">Episode links</label><span class="hint" id="count">0 links</span></div>
+    <textarea id="urls" spellcheck="false" placeholder="https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=1&lang=en&#10;https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=2&lang=en"></textarea>
+    <div class="controls">
+      <button class="btn primary" id="start">Extract &amp; merge</button>
+      <button class="btn secondary" id="clear">Clear</button>
+    </div>
+
+    <div class="notice"><strong>Workflow:</strong> ClipJoin automatically scrapes the raw CDN stream from each link, downloads it via your serverless proxy, and stitches everything locally. Keep this tab open.</div>
+
+    <div class="queue" id="queue"></div>
+    <div class="status" id="status">
+      <div class="statushead"><strong id="phase">Preparing…</strong><span class="percent" id="percent">0%</span></div>
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="substatus" id="detail" aria-live="polite"></div>
+    </div>
+    <div class="result" id="result">
+      <strong>Your combined video is ready.</strong>
+      <p id="resultInfo">MP4 file prepared in your browser.</p>
+      <a class="btn success" id="download" download="clipjoin-combined.mp4" href="#">↓ Download combined video</a>
+    </div>
+  </section>
+  <p class="foot">Processed locally via WebAssembly with Cloudflare proxy routing.</p>
+</main>
+
+<script type="module">
+import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+import { toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js';
+
+const $ = id => document.getElementById(id);
+const urlsEl = $('urls'), startBtn = $('start'), clearBtn = $('clear');
+let ffmpeg = null, outputUrl = null, busy = false;
+
+function getUrls() {
+  return [...new Set(urlsEl.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean))];
+}
+function updateCount() {
+  const n = getUrls().length;
+  $('count').textContent = `${n} link${n === 1 ? '' : 's'}`;
+}
+urlsEl.addEventListener('input', updateCount);
+clearBtn.addEventListener('click', () => {
+  if (busy) return;
+  urlsEl.value = ''; updateCount(); $('queue').replaceChildren();
+  $('status').classList.remove('show'); $('result').classList.remove('show');
+  if (outputUrl) URL.revokeObjectURL(outputUrl);
+  outputUrl = null;
+});
+
+function setProgress(percent, phase, detail='') {
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  $('status').classList.add('show');
+  $('fill').style.width = p + '%'; $('percent').textContent = p + '%';
+  $('phase').textContent = phase; $('detail').textContent = detail;
+}
+function safeName(i, ext) { return `input_${String(i).padStart(3,'0')}.${ext}`; }
+function setItemState(index, text, cls='') {
+  const el = $('queue').querySelector(`[data-index="${index}"] .state`);
+  if (el) { el.textContent = text; el.className = 'state ' + cls; }
+}
+
+async function loadEngine() {
+  if (ffmpeg) return;
+  setProgress(2, 'Loading video engine', 'Initializing WebAssembly FFmpeg...');
+  ffmpeg = new FFmpeg();
+  ffmpeg.on('progress', ({ progress }) => {
+    setProgress(85 + Math.max(0, Math.min(1, progress)) * 14, 'Merging videos', 'Combining clips in order…');
+  });
+  const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm')
+  });
+}
+
+async function processVideo(url, index, total) {
+  setItemState(index, 'Extracting stream…');
+  const extractRes = await fetch('/api/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  const extractData = await extractRes.json();
+  if (!extractData.success) throw new Error(extractData.error || 'Extraction failed');
+
+  const directUrl = extractData.directUrl;
+
+  setItemState(index, 'Downloading…');
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(directUrl)}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) throw new Error(`Download failed (HTTP ${response.status})`);
+
+  const reader = response.body?.getReader();
+  let chunks = [], received = 0;
+  const totalBytes = Number(response.headers.get('content-length')) || 0;
+
+  if (reader) {
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      chunks.push(value); received += value.byteLength;
+      const baseProgress = 5 + (index / total) * 60;
+      const stepProgress = totalBytes ? (received / totalBytes) * (60 / total) : 0;
+      setProgress(baseProgress + stepProgress, `Downloading episode ${index+1} of ${total}`, `${(received/1048576).toFixed(1)} MB received`);
+    }
+  } else {
+    const blob = await response.blob();
+    chunks = [new Uint8Array(await blob.arrayBuffer())];
+    received = blob.size;
+  }
+
+  const bytes = new Uint8Array(received); let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  if (!bytes.length) throw new Error('Downloaded file is empty');
+  
+  setItemState(index, 'Ready', 'ok');
+  return { name: safeName(index+1, 'mp4'), bytes };
+}
+
+startBtn.addEventListener('click', async () => {
+  if (busy) return;
+  const urls = getUrls();
+  if (!urls.length) { alert('Paste at least one link.'); return; }
+  
+  busy = true; startBtn.disabled = true; clearBtn.disabled = true;
+  $('result').classList.remove('show');
+  if (outputUrl) URL.revokeObjectURL(outputUrl);
+  
+  $('queue').innerHTML = urls.map((u,i) => `<div class="item" data-index="${i}"><span class="num">${i+1}</span><span class="url" title="${u.replaceAll('"','&quot;')}">${u.replaceAll('<','&lt;')}</span><span class="state">Waiting</span></div>`).join('');
+  
+  try {
+    const files = [];
+    for (let i=0; i<urls.length; i++) {
+      const file = await processVideo(urls[i], i, urls.length);
+      files.push(file);
+    }
+    
+    await loadEngine();
+    setProgress(72, 'Preparing workspace', 'Writing streams to memory...');
+    const listLines = [];
+    for (const file of files) {
+      await ffmpeg.writeFile(file.name, file.bytes);
+      listLines.push(`file '${file.name}'`);
+    }
+    await ffmpeg.writeFile('concat-list.txt', new TextEncoder().encode(listLines.join('\n')));
+    
+    setProgress(85, 'Merging videos', 'Stitching clips together...');
+    let code = await ffmpeg.exec(['-f','concat','-safe','0','-i','concat-list.txt','-c','copy','-movflags','+faststart','combined.mp4']);
+    if (code !== 0) {
+      setProgress(85, 'Re-encoding', 'Codecs differ, re-encoding clips...');
+      code = await ffmpeg.exec(['-f','concat','-safe','0','-i','concat-list.txt','-c:v','libx264','-preset','ultrafast','-crf','23','-c:a','aac','-b:a','192k','-movflags','+faststart','combined.mp4']);
+    }
+    if (code !== 0) throw new Error('FFmpeg failed to merge files.');
+    
+    const data = await ffmpeg.readFile('combined.mp4');
+    const blob = new Blob([data], {type:'video/mp4'});
+    outputUrl = URL.createObjectURL(blob);
+    $('download').href = outputUrl;
+    $('resultInfo').textContent = `Combined ${files.length} episode${files.length===1?'':'s'} · ${(blob.size/1048576).toFixed(1)} MB`;
+    $('result').classList.add('show');
+    setProgress(100, 'Complete', 'Combined video is ready!');
+  } catch (err) {
+    console.error(err);
+    setProgress(0, 'Failed', err?.message || 'An error occurred.');
+    alert(`Process failed:\n${err?.message || err}`);
+  } finally {
+    busy = false; startBtn.disabled = false; clearBtn.disabled = false;
+  }
+});
+updateCount();
+</script>
+</body>
+</html>
