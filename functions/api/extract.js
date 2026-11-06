@@ -24,6 +24,7 @@ export async function onRequestPost(context) {
       });
     }
 
+    // Fetch target URL mimicking a regular browser
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -41,6 +42,7 @@ export async function onRequestPost(context) {
 
     const htmlText = await response.text();
 
+    // Regex patterns to capture direct CDN video streams (TikTok / MP4 / embedded player urls)
     const patterns = [
       /https:\/\/[^"'<>\s]+?\.(?:tiktokcdn\.com|mp4)[^"'<>\s]*/i,
       /"playAddr"\s*:\s*"([^"]+)"/,
@@ -64,7 +66,7 @@ export async function onRequestPost(context) {
       });
     }
 
-    return new Response(JSON.stringify({ success: false, error: "Unable to extract direct MP4/CDN stream from this link." }), {
+    return new Response(JSON.stringify({ success: false, error: "Unable to extract direct video stream link from page." }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
