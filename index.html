@@ -3,115 +3,263 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ClipJoin - Video Concatenator</title>
+  <title>ClipJoin — Multi-Video Stitcher</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; padding: 40px 20px; }
-    .card { background: #1e293b; padding: 24px; border-radius: 12px; max-width: 600px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-    h1 { margin-top: 0; color: #38bdf8; }
-    textarea { width: 100%; height: 120px; background: #0f172a; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 12px; font-family: monospace; box-sizing: border-box; resize: vertical; }
-    button { width: 100%; margin-top: 12px; padding: 12px; background: #0284c7; border: none; color: white; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; }
-    button:disabled { background: #475569; cursor: not-allowed; }
-    #downloadBtn { background: #16a34a; display: none; text-align: center; text-decoration: none; display: block; margin-top: 12px; }
-    .progress-box { margin-top: 16px; display: none; }
-    progress { width: 100%; height: 12px; }
-    .status { font-size: 0.9em; color: #94a3b8; margin-bottom: 6px; }
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(21, 29, 46, 0.75);
+      --accent: #0284c7;
+      --accent-hover: #0369a1;
+      --success: #16a34a;
+      --success-hover: #15803d;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: rgba(255, 255, 255, 0.08);
+      --glow: rgba(56, 189, 248, 0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #1e293b 0%, var(--bg) 70%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 620px;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 40px var(--glow);
+    }
+
+    .header { margin-bottom: 24px; text-align: center; }
+    .brand-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .subtitle { font-size: 0.95rem; color: var(--text-muted); line-height: 1.5; }
+
+    .input-group { margin-bottom: 20px; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px; }
+    
+    textarea {
+      width: 100%;
+      height: 140px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    textarea:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+      text-decoration: none;
+      margin-top: 16px;
+      display: none;
+    }
+    .btn-success:hover { background: var(--success-hover); transform: translateY(-1px); }
+
+    .progress-card {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: none;
+    }
+
+    .status-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #818cf8);
+      transition: width 0.3s ease;
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 24px;
+    }
   </style>
-  <!-- Load FFmpeg WebAssembly -->
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 </head>
 <body>
-  <div class="card">
-    <h1>ClipJoin1</h1>
-    <p style="color: #94a3b8;">Paste your video URLs line by line. ClipJoin extracts the direct video streams, merges them, and generates a single download file.</p>
-    
-    <textarea id="urlList" placeholder="https://reelfren.net/watch/pinedrama/...ep=1&#10;https://reelfren.net/watch/pinedrama/...ep=2"></textarea>
-    
-    <button id="processBtn" onclick="startJoinProcess()">Join & Merge Videos</button>
-    
-    <div class="progress-box" id="progressBox">
-      <div class="status" id="statusLabel">Preparing execution environment...</div>
-      <progress id="progressBar" value="0" max="100"></progress>
+  <div class="container">
+    <div class="header">
+      <div class="brand-title">ClipJoin</div>
+      <p class="subtitle">Paste multi-line video episode URLs. ClipJoin extracts dynamic streams and stitches them into a single file.</p>
     </div>
 
-    <a id="downloadBtn" download="ClipJoin_Combined.mp4" style="display:none;">Download Combined Video</a>
+    <div class="input-group">
+      <label for="urlInput">Target Video Links (One per line)</label>
+      <textarea id="urlInput" placeholder="https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=1&#10;https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=2"></textarea>
+    </div>
+
+    <button id="startBtn" class="btn btn-primary" onclick="processClipJoin()">
+      <span>Join & Merge Videos</span>
+    </button>
+
+    <div id="progressCard" class="progress-card">
+      <div class="status-header">
+        <span id="statusMessage">Preparing environment...</span>
+        <span id="percentLabel">0%</span>
+      </div>
+      <div class="progress-track">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+    </div>
+
+    <a id="downloadBtn" class="btn btn-success" download="ClipJoin_Combined.mp4">
+      Download Combined MP4
+    </a>
+
+    <div class="footer-note">Client-side WebAssembly video processing powered by FFmpeg.wasm</div>
   </div>
 
   <script>
     const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: true });
+    const ffmpeg = createFFmpeg({ log: false });
 
-    async function startJoinProcess() {
-      const rawText = document.getElementById('urlList').value.trim();
-      if (!rawText) return alert("Please paste at least one video URL.");
+    function updateProgress(percent, message) {
+      document.getElementById('progressFill').style.width = `${percent}%`;
+      document.getElementById('percentLabel').innerText = `${Math.round(percent)}%`;
+      if (message) document.getElementById('statusMessage').innerText = message;
+    }
+
+    async function processClipJoin() {
+      const inputArea = document.getElementById('urlInput');
+      const urls = inputArea.value.trim().split('\n').map(u => u.trim()).filter(u => u.length > 0);
       
-      const urls = rawText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
-      const btn = document.getElementById('processBtn');
-      const progressBox = document.getElementById('progressBox');
-      const statusLabel = document.getElementById('statusLabel');
-      const progressBar = document.getElementById('progressBar');
+      if (urls.length === 0) return alert("Please enter at least one video link.");
+
+      const startBtn = document.getElementById('startBtn');
+      const progressCard = document.getElementById('progressCard');
       const downloadBtn = document.getElementById('downloadBtn');
 
-      btn.disabled = true;
-      progressBox.style.display = "block";
-      downloadBtn.style.display = "none";
-      progressBar.value = 0;
+      startBtn.disabled = true;
+      progressCard.style.display = 'block';
+      downloadBtn.style.display = 'none';
+      updateProgress(0, "Resolving video stream links...");
 
       try {
         const resolvedDirectUrls = [];
 
         // 1. Resolve URLs via Cloudflare Worker
         for (let i = 0; i < urls.length; i++) {
-          statusLabel.innerText = `Resolving video stream URL (${i + 1}/${urls.length})...`;
-          const res = await fetch('/api/extract', {
+          updateProgress(((i + 1) / urls.length) * 30, `Extracting stream (${i + 1}/${urls.length})...`);
+          
+          const response = await fetch('/api/extract', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: urls[i] })
           });
-          const data = await res.json();
-          if (!data.success) throw new Error(`Link #${i+1} failed: ${data.error}`);
+
+          const data = await response.json();
+          if (!data.success) throw new Error(`Link #${i+1}: ${data.error}`);
           resolvedDirectUrls.push(data.directUrl);
-          progressBar.value = ((i + 1) / urls.length) * 30;
         }
 
-        // 2. Initialize In-Browser WebAssembly FFmpeg
+        // 2. Load In-Browser FFmpeg engine
         if (!ffmpeg.isLoaded()) {
-          statusLabel.innerText = "Initializing in-browser video processing engine...";
+          updateProgress(35, "Initializing video engine...");
           await ffmpeg.load();
         }
 
-        // 3. Load files into WASM virtual filesystem
-        let manifestContent = '';
+        // 3. Download chunks into WebAssembly Virtual FileSystem
+        let concatList = '';
         for (let i = 0; i < resolvedDirectUrls.length; i++) {
-          statusLabel.innerText = `Fetching video segment (${i + 1}/${resolvedDirectUrls.length})...`;
-          const videoData = await fetchFile(resolvedDirectUrls[i]);
+          updateProgress(40 + (((i + 1) / resolvedDirectUrls.length) * 40), `Downloading segment (${i + 1}/${resolvedDirectUrls.length})...`);
+          
+          const fileData = await fetchFile(resolvedDirectUrls[i]);
           const fileName = `part${i}.mp4`;
-          ffmpeg.FS('writeFile', fileName, videoData);
-          manifestContent += `file '${fileName}'\n`;
-          progressBar.value = 30 + (((i + 1) / resolvedDirectUrls.length) * 40);
+          ffmpeg.FS('writeFile', fileName, fileData);
+          concatList += `file '${fileName}'\n`;
         }
 
-        ffmpeg.FS('writeFile', 'concat.txt', manifestContent);
+        ffmpeg.FS('writeFile', 'concat.txt', concatList);
 
-        // 4. Perform Lossless Stream Concatenation
-        statusLabel.innerText = "Stitching video segments into 1 file...";
-        await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy', 'joined_output.mp4');
-        progressBar.value = 95;
+        // 4. Stitch files using demuxer (c copy = lossless, fast stitch)
+        updateProgress(85, "Stitching video segments...");
+        await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy', 'output.mp4');
 
-        // 5. Read output blob & generate download button link
-        const data = ffmpeg.FS('readFile', 'joined_output.mp4');
-        const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+        // 5. Build Downloadable Blob
+        updateProgress(98, "Generating output file...");
+        const outputData = ffmpeg.FS('readFile', 'output.mp4');
+        const videoBlob = new Blob([outputData.buffer], { type: 'video/mp4' });
         const videoUrl = URL.createObjectURL(videoBlob);
 
         downloadBtn.href = videoUrl;
-        downloadBtn.style.display = "block";
-        statusLabel.innerText = "Processing Complete! Your joined video is ready for download.";
-        progressBar.value = 100;
+        downloadBtn.style.display = 'flex';
+        updateProgress(100, "Complete! File ready.");
 
       } catch (err) {
         alert(`ClipJoin Error: ${err.message}`);
-        statusLabel.innerText = "Error encountered during processing.";
+        updateProgress(0, "Processing aborted.");
       } finally {
-        btn.disabled = false;
+        startBtn.disabled = false;
       }
     }
   </script>
