@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ClipJoin — Browser Video Merger</title>
-<meta name="description" content="Combine accessible video files directly in your browser. No backend server required.">
+<title>ClipJoin — Multi-Video Stitcher</title>
+<meta name="description" content="Paste episode watch links. ClipJoin extracts dynamic streams and merges them into a single MP4 file.">
 <style>
 :root{color-scheme:dark;--bg:#0b1020;--panel:#121a2b;--panel2:#0e1626;--line:#26344b;--muted:#9aa9bf;--text:#edf3fc;--blue:#5b8cff;--green:#20c997;--red:#ff6b7a}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1c3157 0,transparent 55%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
@@ -22,19 +22,19 @@ textarea{width:100%;min-height:190px;resize:vertical;background:var(--panel2);bo
 </head>
 <body>
 <main class="wrap">
-  <div class="brand"><div class="logo">▶</div><div><strong>ClipJoin</strong><small>Browser video merger · No backend</small></div></div>
+  <div class="brand"><div class="logo">▶</div><div><strong>ClipJoin</strong><small>Multi-Episode Video Merger</small></div></div>
   <h1>One list. One video.</h1>
-  <p class="intro">Paste direct video file links or CDN streams, one per line. ClipJoin routes them through your serverless proxy, downloads them into your browser, and joins them into one MP4.</p>
+  <p class="intro">Paste watch links one per line. ClipJoin automatically extracts the underlying stream sources, proxies them securely, and joins them into a single MP4.</p>
 
   <section class="card">
-    <div class="labelrow"><label for="urls">Video links</label><span class="hint" id="count">0 links</span></div>
-    <textarea id="urls" spellcheck="false" placeholder="https://v77e.tiktokcdn.com/...&#10;https://v77e.tiktokcdn.com/..."></textarea>
+    <div class="labelrow"><label for="urls">Episode links</label><span class="hint" id="count">0 links</span></div>
+    <textarea id="urls" spellcheck="false" placeholder="https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=1&lang=en&#10;https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=2&lang=en"></textarea>
     <div class="controls">
-      <button class="btn primary" id="start">Download &amp; merge</button>
+      <button class="btn primary" id="start">Extract &amp; merge</button>
       <button class="btn secondary" id="clear">Clear</button>
     </div>
 
-    <div class="notice"><strong>Note:</strong> Protected CDN links are automatically routed through your Cloudflare proxy backend to bypass CORS and hotlinking restrictions. Keep this tab open while processing.</div>
+    <div class="notice"><strong>Workflow:</strong> ClipJoin automatically scrapes the raw CDN stream from each link, downloads it via your serverless proxy, and stitches everything locally. Keep this tab open.</div>
 
     <div class="queue" id="queue"></div>
     <div class="status" id="status">
@@ -48,7 +48,7 @@ textarea{width:100%;min-height:190px;resize:vertical;background:var(--panel2);bo
       <a class="btn success" id="download" download="clipjoin-combined.mp4" href="#">↓ Download combined video</a>
     </div>
   </section>
-  <p class="foot">Processed locally via WebAssembly with serverless proxy support.</p>
+  <p class="foot">Processed locally via WebAssembly with Cloudflare proxy routing.</p>
 </main>
 
 <script type="module">
@@ -82,14 +82,6 @@ function setProgress(percent, phase, detail='') {
   $('phase').textContent = phase; $('detail').textContent = detail;
 }
 function safeName(i, ext) { return `input_${String(i).padStart(3,'0')}.${ext}`; }
-function extFrom(url, type) {
-  const path = new URL(url).pathname.toLowerCase();
-  const match = path.match(/\.(mp4|m4v|mov|webm|mkv|avi|mpeg|mpg|ogv)(?:$)/);
-  if (match) return match[1] === 'm4v' ? 'mp4' : match[1];
-  if (type.includes('webm')) return 'webm';
-  if (type.includes('quicktime')) return 'mov';
-  return 'mp4';
-}
 function setItemState(index, text, cls='') {
   const el = $('queue').querySelector(`[data-index="${index}"] .state`);
   if (el) { el.textContent = text; el.className = 'state ' + cls; }
@@ -97,10 +89,10 @@ function setItemState(index, text, cls='') {
 
 async function loadEngine() {
   if (ffmpeg) return;
-  setProgress(2, 'Loading video engine', 'First use may take a little while because FFmpeg is downloaded into your browser.');
+  setProgress(2, 'Loading video engine', 'Initializing WebAssembly FFmpeg...');
   ffmpeg = new FFmpeg();
   ffmpeg.on('progress', ({ progress }) => {
-    setProgress(85 + Math.max(0, Math.min(1, progress)) * 14, 'Merging videos', 'Combining clips in the order provided…');
+    setProgress(85 + Math.max(0, Math.min(1, progress)) * 14, 'Merging videos', 'Combining clips in order…');
   });
   const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
   await ffmpeg.load({
@@ -109,21 +101,25 @@ async function loadEngine() {
   });
 }
 
-async function fetchVideo(url, index, total) {
-  // Route through your Cloudflare Worker proxy endpoint to bypass CORS and CDN blocks
-  const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-  let response;
-  
-  try { 
-    response = await fetch(proxyUrl);
-  } catch (e) {
-    throw new Error('Could not connect to the proxy server.');
-  }
+async function processVideo(url, index, total) {
+  // 1. Extract raw stream URL via backend worker
+  setItemState(index, 'Extracting stream…');
+  const extractRes = await fetch('/api/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url })
+  });
+  const extractData = await extractRes.json();
+  if (!extractData.success) throw new Error(extractData.error || 'Extraction failed');
 
-  if (!response || !response.ok) throw new Error(`Download failed (HTTP ${response?.status || 'unknown'}).`);
-  
-  const type = response.headers.get('content-type') || '';
-  const ext = extFrom(url, type);
+  const directUrl = extractData.directUrl;
+
+  // 2. Download raw stream via Cloudflare proxy
+  setItemState(index, 'Downloading…');
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(directUrl)}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) throw new Error(`Download failed (HTTP ${response.status})`);
+
   const reader = response.body?.getReader();
   let chunks = [], received = 0;
   const totalBytes = Number(response.headers.get('content-length')) || 0;
@@ -133,48 +129,44 @@ async function fetchVideo(url, index, total) {
       const {done, value} = await reader.read();
       if (done) break;
       chunks.push(value); received += value.byteLength;
-      if (totalBytes) {
-        setProgress(5 + (index / total) * 65 + (received / totalBytes) * (65 / total), `Downloading video ${index+1} of ${total}`, `${(received/1048576).toFixed(1)} MB received`);
-      } else {
-        setProgress(5 + (index / total) * 65, `Downloading video ${index+1} of ${total}`, `${(received/1048576).toFixed(1)} MB received`);
-      }
+      const baseProgress = 5 + (index / total) * 60;
+      const stepProgress = totalBytes ? (received / totalBytes) * (60 / total) : 0;
+      setProgress(baseProgress + stepProgress, `Downloading episode ${index+1} of ${total}`, `${(received/1048576).toFixed(1)} MB received`);
     }
   } else {
-    const blob = await response.blob(); 
-    chunks = [new Uint8Array(await blob.arrayBuffer())]; 
+    const blob = await response.blob();
+    chunks = [new Uint8Array(await blob.arrayBuffer())];
     received = blob.size;
   }
 
   const bytes = new Uint8Array(received); let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  if (!bytes.length) throw new Error('The downloaded file is empty.');
-  return { name: safeName(index+1, ext), bytes };
+  if (!bytes.length) throw new Error('Downloaded file is empty');
+  
+  setItemState(index, 'Ready', 'ok');
+  return { name: safeName(index+1, 'mp4'), bytes };
 }
 
 startBtn.addEventListener('click', async () => {
   if (busy) return;
   const urls = getUrls();
-  if (!urls.length) { alert('Paste at least one video URL.'); return; }
-  for (const url of urls) {
-    try { const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw 0; }
-    catch { alert(`Invalid URL:\n${url}`); return; }
-  }
+  if (!urls.length) { alert('Paste at least one link.'); return; }
+  
   busy = true; startBtn.disabled = true; clearBtn.disabled = true;
   $('result').classList.remove('show');
   if (outputUrl) URL.revokeObjectURL(outputUrl);
+  
   $('queue').innerHTML = urls.map((u,i) => `<div class="item" data-index="${i}"><span class="num">${i+1}</span><span class="url" title="${u.replaceAll('"','&quot;')}">${u.replaceAll('<','&lt;')}</span><span class="state">Waiting</span></div>`).join('');
   
   try {
     const files = [];
     for (let i=0; i<urls.length; i++) {
-      setItemState(i, 'Downloading…');
-      setProgress(5 + (i/urls.length)*65, `Downloading video ${i+1} of ${urls.length}`, 'Fetching video via Cloudflare proxy…');
-      const file = await fetchVideo(urls[i], i, urls.length);
-      files.push(file); setItemState(i, 'Downloaded', 'ok');
+      const file = await processVideo(urls[i], i, urls.length);
+      files.push(file);
     }
     
     await loadEngine();
-    setProgress(72, 'Preparing files', 'Moving downloaded clips into the local video workspace…');
+    setProgress(72, 'Preparing workspace', 'Writing streams to memory...');
     const listLines = [];
     for (const file of files) {
       await ffmpeg.writeFile(file.name, file.bytes);
@@ -182,25 +174,25 @@ startBtn.addEventListener('click', async () => {
     }
     await ffmpeg.writeFile('concat-list.txt', new TextEncoder().encode(listLines.join('\n')));
     
-    setProgress(85, 'Merging videos', 'Trying a fast merge without re-encoding…');
+    setProgress(85, 'Merging videos', 'Stitching clips together...');
     let code = await ffmpeg.exec(['-f','concat','-safe','0','-i','concat-list.txt','-c','copy','-movflags','+faststart','combined.mp4']);
     if (code !== 0) {
-      setProgress(85, 'Re-encoding videos', 'The clips need format matching. This can take longer…');
+      setProgress(85, 'Re-encoding', 'Codecs differ, re-encoding clips...');
       code = await ffmpeg.exec(['-f','concat','-safe','0','-i','concat-list.txt','-c:v','libx264','-preset','ultrafast','-crf','23','-c:a','aac','-b:a','192k','-movflags','+faststart','combined.mp4']);
     }
-    if (code !== 0) throw new Error('FFmpeg could not combine these files. They may use unsupported codecs or formats.');
+    if (code !== 0) throw new Error('FFmpeg failed to merge files.');
     
     const data = await ffmpeg.readFile('combined.mp4');
     const blob = new Blob([data], {type:'video/mp4'});
     outputUrl = URL.createObjectURL(blob);
     $('download').href = outputUrl;
-    $('resultInfo').textContent = `Combined ${files.length} video${files.length===1?'':'s'} · ${(blob.size/1048576).toFixed(1)} MB`;
+    $('resultInfo').textContent = `Combined ${files.length} episode${files.length===1?'':'s'} · ${(blob.size/1048576).toFixed(1)} MB`;
     $('result').classList.add('show');
-    setProgress(100, 'Completed', 'Your combined MP4 is ready to download.');
+    setProgress(100, 'Complete', 'Combined video is ready!');
   } catch (err) {
     console.error(err);
-    setProgress(0, 'Could not finish', err?.message || 'An unexpected error occurred.');
-    alert(`Video merge failed:\n${err?.message || err}`);
+    setProgress(0, 'Failed', err?.message || 'An error occurred.');
+    alert(`Process failed:\n${err?.message || err}`);
   } finally {
     busy = false; startBtn.disabled = false; clearBtn.disabled = false;
   }
