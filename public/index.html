@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ClipJoin — Multi-Video Stitcher</title>
-<meta name="description" content="Paste episode watch links. ClipJoin extracts dynamic streams and merges them into a single MP4 file.">
+<title>ClipJoin — Universal Video Merger & Downloader</title>
+<meta name="description" content="Paste links from Facebook, Instagram, TikTok, YouTube, or ReelFren. ClipJoin extracts and stitches them into a single MP4.">
 <style>
 :root{color-scheme:dark;--bg:#0b1020;--panel:#121a2b;--panel2:#0e1626;--line:#26344b;--muted:#9aa9bf;--text:#edf3fc;--blue:#5b8cff;--green:#20c997;--red:#ff6b7a}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#1c3157 0,transparent 55%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
@@ -22,19 +22,19 @@ textarea{width:100%;min-height:190px;resize:vertical;background:var(--panel2);bo
 </head>
 <body>
 <main class="wrap">
-  <div class="brand"><div class="logo">▶</div><div><strong>ClipJoin</strong><small>Multi-Episode Video Merger</small></div></div>
+  <div class="brand"><div class="logo">▶</div><div><strong>ClipJoin</strong><small>Universal Social Video Merger</small></div></div>
   <h1>One list. One video.</h1>
-  <p class="intro">Paste watch links one per line. ClipJoin automatically extracts the underlying stream sources, proxies them securely, and joins them into a single MP4.</p>
+  <p class="intro">Paste links from Facebook, Instagram, TikTok, YouTube, or ReelFren (one per line). ClipJoin extracts the video streams, proxies them safely, and merges them into a single MP4.</p>
 
   <section class="card">
-    <div class="labelrow"><label for="urls">Episode links</label><span class="hint" id="count">0 links</span></div>
-    <textarea id="urls" spellcheck="false" placeholder="https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=1&lang=en&#10;https://reelfren.net/watch/pinedrama/7663625167096304641-the-invincible-baldy?ep=2&lang=en"></textarea>
+    <div class="labelrow"><label for="urls">Video / Social Links</label><span class="hint" id="count">0 links</span></div>
+    <textarea id="urls" spellcheck="false" placeholder="https://www.tiktok.com/@user/video/...&#10;https://www.instagram.com/reel/...&#10;https://reelfren.net/watch/..."></textarea>
     <div class="controls">
-      <button class="btn primary" id="start">Extract &amp; merge</button>
+      <button class="btn primary" id="start">Extract &amp; Merge</button>
       <button class="btn secondary" id="clear">Clear</button>
     </div>
 
-    <div class="notice"><strong>Workflow:</strong> ClipJoin automatically scrapes the raw CDN stream from each link, downloads it via your serverless proxy, and stitches everything locally. Keep this tab open.</div>
+    <div class="notice"><strong>Supported:</strong> Public social media video links, CDN streams, and watch episodes. Keep this tab open while processing.</div>
 
     <div class="queue" id="queue"></div>
     <div class="status" id="status">
@@ -48,7 +48,7 @@ textarea{width:100%;min-height:190px;resize:vertical;background:var(--panel2);bo
       <a class="btn success" id="download" download="clipjoin-combined.mp4" href="#">↓ Download combined video</a>
     </div>
   </section>
-  <p class="foot">Processed locally via WebAssembly with Cloudflare proxy routing.</p>
+  <p class="foot">Processed locally via WebAssembly with multi-platform proxy routing.</p>
 </main>
 
 <script type="module">
@@ -78,7 +78,7 @@ clearBtn.addEventListener('click', () => {
 function setProgress(percent, phase, detail='') {
   const p = Math.max(0, Math.min(100, Math.round(percent)));
   $('status').classList.add('show');
-  $('fill').style.width = p + '%'; $('percent').textContent = p + '%';
+  $('fill'].style.width = p + '%'; $('percent').textContent = p + '%';
   $('phase').textContent = phase; $('detail').textContent = detail;
 }
 function safeName(i, ext) { return `input_${String(i).padStart(3,'0')}.${ext}`; }
@@ -129,7 +129,7 @@ async function processVideo(url, index, total) {
       chunks.push(value); received += value.byteLength;
       const baseProgress = 5 + (index / total) * 60;
       const stepProgress = totalBytes ? (received / totalBytes) * (60 / total) : 0;
-      setProgress(baseProgress + stepProgress, `Downloading episode ${index+1} of ${total}`, `${(received/1048576).toFixed(1)} MB received`);
+      setProgress(baseProgress + stepProgress, `Downloading item ${index+1} of ${total}`, `${(received/1048576).toFixed(1)} MB received`);
     }
   } else {
     const blob = await response.blob();
@@ -184,7 +184,7 @@ startBtn.addEventListener('click', async () => {
     const blob = new Blob([data], {type:'video/mp4'});
     outputUrl = URL.createObjectURL(blob);
     $('download').href = outputUrl;
-    $('resultInfo').textContent = `Combined ${files.length} episode${files.length===1?'':'s'} · ${(blob.size/1048576).toFixed(1)} MB`;
+    $('resultInfo').textContent = `Combined ${files.length} video${files.length===1?'':'s'} · ${(blob.size/1048576).toFixed(1)} MB`;
     $('result').classList.add('show');
     setProgress(100, 'Complete', 'Combined video is ready!');
   } catch (err) {
