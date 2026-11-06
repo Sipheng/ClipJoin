@@ -102,6 +102,7 @@
       text-decoration: none;
       margin-top: 16px;
       display: none;
+      text-align: center;
     }
     .btn-success:hover { background: var(--success-hover); transform: translateY(-1px); }
 
@@ -211,13 +212,25 @@
         for (let i = 0; i < urls.length; i++) {
           updateProgress(((i + 1) / urls.length) * 30, `Extracting stream (${i + 1}/${urls.length})...`);
           
-          const response = await fetch('/api/extract', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: urls[i] })
-          });
+          let response;
+          try {
+            response = await fetch('/api/extract', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: urls[i] })
+            });
+          } catch (netErr) {
+            throw new Error(`Network request failed for link #${i+1}: ${netErr.message}`);
+          }
 
-          const data = await response.json();
+          const rawText = await response.text();
+          let data;
+          try {
+            data = JSON.parse(rawText);
+          } catch (parseErr) {
+            throw new Error(`Server returned invalid response (Status ${response.status}): ${rawText.slice(0, 80) || 'Empty response'}`);
+          }
+
           if (!data.success) throw new Error(`Link #${i+1}: ${data.error}`);
           resolvedDirectUrls.push(data.directUrl);
         }
@@ -241,7 +254,7 @@
 
         ffmpeg.FS('writeFile', 'concat.txt', concatList);
 
-        // 4. Stitch files using demuxer (c copy = lossless, fast stitch)
+        // 4. Stitch files using demuxer
         updateProgress(85, "Stitching video segments...");
         await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy', 'output.mp4');
 
