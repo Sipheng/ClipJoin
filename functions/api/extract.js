@@ -24,7 +24,6 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Fetch target HTML with browser-like request headers
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -42,7 +41,6 @@ export async function onRequestPost(context) {
 
     const htmlText = await response.text();
 
-    // Comprehensive extraction patterns (ReelFren / TikTok CDN / HTML5 Video / JSON payloads)
     const patterns = [
       /https:\/\/[^"'<>\s]+?\.(?:tiktokcdn\.com|mp4)[^"'<>\s]*/i,
       /"playAddr"\s*:\s*"([^"]+)"/,
