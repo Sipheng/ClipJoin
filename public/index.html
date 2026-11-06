@@ -24,17 +24,17 @@ textarea{width:100%;min-height:190px;resize:vertical;background:var(--panel2);bo
 <main class="wrap">
   <div class="brand"><div class="logo">▶</div><div><strong>ClipJoin</strong><small>Browser video merger · No backend</small></div></div>
   <h1>One list. One video.</h1>
-  <p class="intro">Paste video URLs or direct file links, one per line. ClipJoin downloads them into your browser, bypasses CORS restrictions when possible, joins them in order, and prepares one MP4 for you.</p>
+  <p class="intro">Paste direct video file links or CDN streams, one per line. ClipJoin routes them through your serverless proxy, downloads them into your browser, and joins them into one MP4.</p>
 
   <section class="card">
     <div class="labelrow"><label for="urls">Video links</label><span class="hint" id="count">0 links</span></div>
-    <textarea id="urls" spellcheck="false" placeholder="https://your-site.com/clip-01.mp4&#10;https://your-site.com/clip-02.mp4&#10;https://your-site.com/clip-03.webm"></textarea>
+    <textarea id="urls" spellcheck="false" placeholder="https://v77e.tiktokcdn.com/...&#10;https://v77e.tiktokcdn.com/..."></textarea>
     <div class="controls">
       <button class="btn primary" id="start">Download &amp; merge</button>
       <button class="btn secondary" id="clear">Clear</button>
     </div>
 
-    <div class="notice"><strong>Note:</strong> Built-in fallback proxying handles standard CORS issues automatically. However, login-protected pages or dynamically encrypted DRM streams cannot be retrieved directly. Keep this tab open while processing.</div>
+    <div class="notice"><strong>Note:</strong> Protected CDN links are automatically routed through your Cloudflare proxy backend to bypass CORS and hotlinking restrictions. Keep this tab open while processing.</div>
 
     <div class="queue" id="queue"></div>
     <div class="status" id="status">
@@ -48,7 +48,7 @@ textarea{width:100%;min-height:190px;resize:vertical;background:var(--panel2);bo
       <a class="btn success" id="download" download="clipjoin-combined.mp4" href="#">↓ Download combined video</a>
     </div>
   </section>
-  <p class="foot">Your video data is processed locally in this browser tab. No video is stored permanently on an external server.</p>
+  <p class="foot">Processed locally via WebAssembly with serverless proxy support.</p>
 </main>
 
 <script type="module">
@@ -110,27 +110,19 @@ async function loadEngine() {
 }
 
 async function fetchVideo(url, index, total) {
+  // Route through your Cloudflare Worker proxy endpoint to bypass CORS and CDN blocks
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
   let response;
-  // Try direct fetch first, fallback to CORS proxy if blocked
+  
   try { 
-    response = await fetch(url, { mode: 'cors' });
-    if (!response.ok) throw new Error();
+    response = await fetch(proxyUrl);
   } catch (e) {
-    try {
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      response = await fetch(proxyUrl);
-    } catch (err) {
-      throw new Error('Could not access this URL. The source blocks cross-origin requests.');
-    }
+    throw new Error('Could not connect to the proxy server.');
   }
 
   if (!response || !response.ok) throw new Error(`Download failed (HTTP ${response?.status || 'unknown'}).`);
   
   const type = response.headers.get('content-type') || '';
-  if (type.includes('text/html') && !url.includes('.mp4')) {
-    throw new Error('This URL returned a webpage instead of a direct media stream.');
-  }
-
   const ext = extFrom(url, type);
   const reader = response.body?.getReader();
   let chunks = [], received = 0;
@@ -176,7 +168,7 @@ startBtn.addEventListener('click', async () => {
     const files = [];
     for (let i=0; i<urls.length; i++) {
       setItemState(i, 'Downloading…');
-      setProgress(5 + (i/urls.length)*65, `Downloading video ${i+1} of ${urls.length}`, 'Fetching video from source or proxy…');
+      setProgress(5 + (i/urls.length)*65, `Downloading video ${i+1} of ${urls.length}`, 'Fetching video via Cloudflare proxy…');
       const file = await fetchVideo(urls[i], i, urls.length);
       files.push(file); setItemState(i, 'Downloaded', 'ok');
     }
